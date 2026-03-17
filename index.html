@@ -766,17 +766,32 @@ window._getDocs = function(ref){ return ref.get(); };
 window.signInWithGoogle = async function(){
   const btn    = document.getElementById('google-signin-btn');
   const status = document.getElementById('login-status');
+  if(!_fbAuth){ status.textContent='Firebase not loaded. Check connection.'; return; }
   btn.disabled = true;
-  status.textContent = 'Opening Google sign-in…';
+  status.textContent = 'Redirecting to Google…';
   try {
-    const result = await _fbAuth.signInWithPopup(_fbGoogleProvider);
-    status.textContent = 'Welcome, ' + result.user.displayName + '!';
+    await _fbAuth.signInWithRedirect(_fbGoogleProvider);
   } catch(e) {
     console.error('signIn error', e);
     status.textContent = 'Sign-in failed: ' + e.message;
     btn.disabled = false;
   }
 };
+
+// Handle redirect result when page loads back after Google auth
+async function handleRedirectResult(){
+  if(!_fbAuth) return;
+  try {
+    const result = await _fbAuth.getRedirectResult();
+    if(result && result.user){
+      console.log('Redirect sign-in success:', result.user.displayName);
+    }
+  } catch(e) {
+    console.error('Redirect result error:', e);
+    const status = document.getElementById('login-status');
+    if(status) status.textContent = 'Sign-in failed: ' + e.message;
+  }
+}
 
 window.signOut = async function(){
   try {
@@ -1962,6 +1977,7 @@ window.onUserReady = async function(user){
 // If not signed in, login screen shows (handled by onAuthStateChanged)
 
 // nav buttons use inline onclick
+handleRedirectResult();
 </script>
 </body>
 </html>
