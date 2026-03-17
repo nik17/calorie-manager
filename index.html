@@ -208,11 +208,31 @@ button:active{transform:scale(0.97)}
 </style>
 </head>
 <body>
-<div class="app">
+<!-- ── Login screen ────────────────────────────────────────── -->
+<div id="login-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px;background:var(--bg3)">
+  <div style="width:64px;height:64px;border-radius:18px;background:var(--tx);display:flex;align-items:center;justify-content:center;margin-bottom:20px">
+    <span style="font-size:28px">🥗</span>
+  </div>
+  <div style="font-size:22px;font-weight:500;margin-bottom:8px;color:var(--tx)">Daily Tracker</div>
+  <div style="font-size:14px;color:var(--tx2);margin-bottom:40px;text-align:center;max-width:260px;line-height:1.6">Your personal food, water &amp; health tracker</div>
+  <button id="google-signin-btn" style="display:flex;align-items:center;gap:12px;background:var(--bg);border:0.5px solid var(--bd2);border-radius:var(--r);padding:13px 24px;font-size:15px;font-weight:500;color:var(--tx);cursor:pointer;width:100%;max-width:280px;justify-content:center;transition:background .15s">
+    <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+    Continue with Google
+  </button>
+  <div id="login-status" style="margin-top:16px;font-size:12px;color:var(--tx2);min-height:18px"></div>
+</div>
+
+<div class="app" id="main-app" style="display:none">
 
   <!-- TOPBAR -->
   <div class="topbar">
-    <div class="topbar-title">Daily Tracker</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="topbar-title">Daily Tracker</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <img id="user-avatar" style="width:28px;height:28px;border-radius:50%;display:none" src="">
+        <button id="signout-btn" style="font-size:11px;padding:3px 10px;border:0.5px solid var(--bd2);border-radius:20px;display:none">Sign out</button>
+      </div>
+    </div>
     <div class="tabs">
       <button class="tab active" onclick="switchTab('today')">Today</button>
       <button class="tab" onclick="switchTab('myfoods')">My foods</button>
@@ -689,8 +709,97 @@ button:active{transform:scale(0.97)}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDzBr_s1ukT4GUay4SIR6rVusgSLNHXHp0",
+  authDomain: "calorie-tracker-67343.firebaseapp.com",
+  projectId: "calorie-tracker-67343",
+  storageBucket: "calorie-tracker-67343.firebasestorage.app",
+  messagingSenderId: "766686691267",
+  appId: "1:766686691267:web:4fac76a0f0c5d6336f0776",
+  measurementId: "G-LXR0PFH95X"
+};
+
+const fbApp     = initializeApp(firebaseConfig);
+const auth      = getAuth(fbApp);
+const db        = getFirestore(fbApp);
+const gProvider = new GoogleAuthProvider();
+
+// ── Expose Firestore helpers to global scope ──────────────────
+window._db      = db;
+window._doc     = doc;
+window._getDoc  = getDoc;
+window._setDoc  = setDoc;
+window._collection = collection;
+window._getDocs = getDocs;
+
+// ── Auth functions defined HERE, inside module, using imports directly ──
+window.signInWithGoogle = async function(){
+  const btn    = document.getElementById('google-signin-btn');
+  const status = document.getElementById('login-status');
+  btn.disabled = true;
+  status.textContent = 'Opening Google sign-in…';
+  try {
+    const result = await signInWithPopup(auth, gProvider);
+    status.textContent = 'Welcome, ' + result.user.displayName + '!';
+  } catch(e) {
+    status.textContent = 'Sign-in failed: ' + e.message;
+    btn.disabled = false;
+  }
+};
+
+window.signOut = async function(){
+  try {
+    await fbSignOut(auth);
+    window.allData     = {};
+    window.expendData  = {};
+    window.userFoods   = [];
+    window.userCats    = [];
+    window._uid        = null;
+  } catch(e) { console.error('signOut error', e); }
+};
+
+// ── Wire button listeners directly ───────────────────────────
+const _signinBtn = document.getElementById('google-signin-btn');
+const _signoutBtn = document.getElementById('signout-btn');
+if(_signinBtn) _signinBtn.addEventListener('click', function(){ window.signInWithGoogle(); });
+if(_signoutBtn) _signoutBtn.addEventListener('click', function(){ window.signOut(); });
+// Also set onclick as belt-and-suspenders fallback
+window._attachAuthButtons = function(){
+  const b = document.getElementById('google-signin-btn');
+  if(b) b.onclick = function(){ window.signInWithGoogle(); };
+  const s = document.getElementById('signout-btn');
+  if(s) s.onclick = function(){ window.signOut(); };
+};
+window._attachAuthButtons();
+
+// ── Auth state observer ───────────────────────────────────────
+onAuthStateChanged(auth, user => {
+  if(user){
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('main-app').style.display     = 'block';
+    const avatar = document.getElementById('user-avatar');
+    if(user.photoURL){ avatar.src = user.photoURL; avatar.style.display = 'block'; }
+    document.getElementById('signout-btn').style.display = 'block';
+    if(typeof window.onUserReady === 'function') window.onUserReady(user);
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('main-app').style.display     = 'none';
+    document.getElementById('user-avatar').style.display  = 'none';
+    document.getElementById('signout-btn').style.display  = 'none';
+  }
+});
+</script>
+
 <script>
-// ── Keys ──────────────────────────────────────────────────────
+// ── Keys (kept for fallback) ──────────────────────────────────
 const SK='ft_data_v3',SETK='ft_settings_v2',FK='ft_foods_v4',CK='ft_cats_v4',EK='ft_expend_v2';
 
 // ── State ─────────────────────────────────────────────────────
@@ -744,50 +853,14 @@ function dayExpend(d){if(!expendData[d])expendData[d]={bmr:0,officeHrs:0,movemen
 function getCatColor(n){if(!n)return'#888780';const c=userCats.find(c=>c&&c.name===n);return c?c.color:'#888780'}
 
 // ── Persist ───────────────────────────────────────────────────
-function load(){
-  try{const r=localStorage.getItem(SK);if(r)allData=JSON.parse(r)}catch(e){}
-  try{const r=localStorage.getItem(SETK);if(r)settings={...settings,...JSON.parse(r)}}catch(e){}
-  try{const r=localStorage.getItem(FK);if(r)userFoods=JSON.parse(r);else userFoods=JSON.parse(JSON.stringify(DEFAULT_FOODS))}catch(e){userFoods=JSON.parse(JSON.stringify(DEFAULT_FOODS))}
-  try{const r=localStorage.getItem(CK);if(r)userCats=JSON.parse(r);else userCats=JSON.parse(JSON.stringify(DEFAULT_CATS))}catch(e){userCats=JSON.parse(JSON.stringify(DEFAULT_CATS))}
-  try{const r=localStorage.getItem(EK);if(r)expendData=JSON.parse(r)}catch(e){}
-  applySettingsToUI();
-}
-function save(){try{localStorage.setItem(SK,JSON.stringify(allData))}catch(e){}}
-function saveFoods(){try{localStorage.setItem(FK,JSON.stringify(userFoods))}catch(e){}}
-function saveCats(){try{localStorage.setItem(CK,JSON.stringify(userCats))}catch(e){}}
-function saveExpend(){
-  const ex=dayExpend(curDate);
-  ex.bmr=+document.getElementById('inp-bmr').value||0;
-  ex.officeHrs=+document.getElementById('inp-office-hrs').value||0;
-  ex.movement=+document.getElementById('inp-movement').value||0;
-  try{localStorage.setItem(EK,JSON.stringify(expendData))}catch(e){}
-  renderBalance();
-}
+// load() replaced by loadFromFirebase() in Firebase boot section
+// save/saveFoods/saveCats defined in Firebase boot section
+// saveExpend defined in Firebase boot section
 function onOfficeSlider(){
   document.getElementById('office-hrs-val').textContent=document.getElementById('inp-office-hrs').value;
   saveExpend();
 }
-function saveSettings(){
-  settings.bmr=+document.getElementById('set-bmr').value||0;
-  settings.officeRate=+document.getElementById('set-office-rate').value||70;
-  settings.cal=+document.getElementById('g-cal').value||2000;
-  settings.prot=+document.getElementById('g-prot').value||120;
-  settings.carb=+document.getElementById('g-carb').value||250;
-  settings.fat=+document.getElementById('g-fat').value||65;
-  settings.fiber=+document.getElementById('g-fiber').value||30;
-  settings.sugar=+document.getElementById('g-sugar').value||30;
-  settings.cupMl=+document.getElementById('cup-size-input').value||250;
-  settings.flaskMl=+document.getElementById('flask-size-input').value||500;
-  try{localStorage.setItem(SETK,JSON.stringify(settings))}catch(e){}
-  // Always push new BMR into today's expend record so renderBalance reflects it immediately
-  const ex=dayExpend(curDate);
-  ex.bmr=settings.bmr;
-  document.getElementById('inp-bmr').value=settings.bmr||'';
-  try{localStorage.setItem(EK,JSON.stringify(expendData))}catch(e){}
-  applySettingsToUI();
-  renderBalance();
-  renderMacroSummary();
-}
+// saveSettings defined in Firebase boot section
 function applySettingsToUI(){
   document.getElementById('set-bmr').value=settings.bmr||'';
   document.getElementById('set-office-rate').value=settings.officeRate||'';
@@ -805,10 +878,20 @@ function applySettingsToUI(){
 }
 
 // ── Date nav ──────────────────────────────────────────────────
-function changeDay(d){
+async function changeDay(d){
   const dt=new Date(curDate+'T00:00:00');dt.setDate(dt.getDate()+d);
   curDate=dt.toISOString().slice(0,10);
-  renderToday();document.getElementById('next-btn').disabled=curDate>=todayStr();
+  // Load this day from Firestore if not already cached
+  if(_uid && !allData[curDate]){
+    const daySnap = await window._getDoc(window._doc(window._db,'users',_uid,'days',curDate));
+    if(daySnap.exists()){
+      const dd=daySnap.data();
+      allData[curDate]={entries:dd.entries||[],water:dd.water||[]};
+      if(dd.expend) expendData[curDate]=dd.expend;
+    }
+  }
+  renderToday();
+  document.getElementById('next-btn').disabled=curDate>=todayStr();
 }
 function fmtDate(s){
   const dt=new Date(s+'T00:00:00'),today=new Date(todayStr()+'T00:00:00');
@@ -1699,9 +1782,131 @@ async function onModalBarcodeDetected(result){
   }
 }
 
+// ── Firebase helpers ─────────────────────────────────────────
+let _uid = null;
+function userRef(path){ return window._doc(window._db, 'users', _uid, ...path.split('/')); }
+
+async function fbSave(path, data){
+  if(!_uid) return;
+  try{ await window._setDoc(userRef(path), data, {merge:true}); }catch(e){ console.warn('fbSave',e); }
+}
+async function fbGet(path){
+  if(!_uid) return null;
+  try{ const s=await window._getDoc(userRef(path)); return s.exists()?s.data():null; }catch(e){ return null; }
+}
+
+// ── Override save/load to use Firestore ──────────────────────
+async function save(){
+  if(!_uid){try{localStorage.setItem(SK,JSON.stringify(allData))}catch(e){} return;}
+  // Save each date as its own document under users/{uid}/days/{date}
+  const today = curDate;
+  const d = dayData(today);
+  await fbSave('days/'+today, {entries:d.entries, water:d.water});
+}
+
+async function saveSettings_fb(){
+  if(!_uid){try{localStorage.setItem(SETK,JSON.stringify(settings))}catch(e){} return;}
+  await fbSave('meta/settings', settings);
+}
+
+async function saveFoods(){
+  if(!_uid){try{localStorage.setItem(FK,JSON.stringify(userFoods))}catch(e){} return;}
+  await fbSave('meta/foods', {list:userFoods});
+}
+
+async function saveCats(){
+  if(!_uid){try{localStorage.setItem(CK,JSON.stringify(userCats))}catch(e){} return;}
+  await fbSave('meta/cats', {list:userCats});
+}
+
+async function saveExpend_fb(){
+  if(!_uid){try{localStorage.setItem(EK,JSON.stringify(expendData))}catch(e){} return;}
+  const ex = dayExpend(curDate);
+  await fbSave('days/'+curDate, {expend:ex});
+}
+
+// Patch saveExpend to also write to firebase
+const _origSaveExpend = saveExpend;
+function saveExpend(){
+  const ex=dayExpend(curDate);
+  ex.bmr=+document.getElementById('inp-bmr').value||0;
+  ex.officeHrs=+document.getElementById('inp-office-hrs').value||0;
+  ex.movement=+document.getElementById('inp-movement').value||0;
+  saveExpend_fb();
+  renderBalance();
+}
+
+// Patch saveSettings
+const _origSaveSettings = saveSettings;
+function saveSettings(){
+  settings.bmr=+document.getElementById('set-bmr').value||0;
+  settings.officeRate=+document.getElementById('set-office-rate').value||70;
+  settings.cal=+document.getElementById('g-cal').value||2000;
+  settings.prot=+document.getElementById('g-prot').value||120;
+  settings.carb=+document.getElementById('g-carb').value||250;
+  settings.fat=+document.getElementById('g-fat').value||65;
+  settings.fiber=+document.getElementById('g-fiber').value||30;
+  settings.sugar=+document.getElementById('g-sugar').value||30;
+  settings.cupMl=+document.getElementById('cup-size-input').value||250;
+  settings.flaskMl=+document.getElementById('flask-size-input').value||500;
+  const ex=dayExpend(curDate);
+  ex.bmr=settings.bmr;
+  document.getElementById('inp-bmr').value=settings.bmr||'';
+  saveSettings_fb();
+  saveExpend_fb();
+  applySettingsToUI();
+  renderBalance();
+  renderMacroSummary();
+}
+
+// ── Load all data from Firestore for this user ────────────────
+async function loadFromFirebase(uid){
+  _uid = uid;
+
+  // Settings
+  const s = await fbGet('meta/settings');
+  if(s) settings = {...settings, ...s};
+
+  // Foods
+  const fd = await fbGet('meta/foods');
+  if(fd && fd.list) userFoods = fd.list;
+  else userFoods = JSON.parse(JSON.stringify(DEFAULT_FOODS));
+
+  // Cats
+  const cd = await fbGet('meta/cats');
+  if(cd && cd.list) userCats = cd.list;
+  else userCats = JSON.parse(JSON.stringify(DEFAULT_CATS));
+
+  // Load last 30 days of data
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate()-30);
+  const col = window._collection(window._db,'users',uid,'days');
+  const snap = await window._getDocs(col);
+  snap.forEach(doc => {
+    const d = doc.data();
+    allData[doc.id] = {
+      entries: d.entries||[],
+      water:   d.water||[]
+    };
+    if(d.expend) expendData[doc.id] = d.expend;
+  });
+
+  applySettingsToUI();
+  renderToday();
+}
+
+// signInWithGoogle and signOut defined in Firebase module script above
+
+// Called by Firebase module when auth state is confirmed
+window.onUserReady = async function(user){
+  await loadFromFirebase(user.uid);
+};
+
+
+
 // ── Boot ──────────────────────────────────────────────────────
-load();
-renderToday();
+// App renders after auth — onUserReady() triggers loadFromFirebase()
+// If not signed in, login screen shows (handled by onAuthStateChanged)
 </script>
 </body>
 </html>
