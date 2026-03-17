@@ -709,14 +709,11 @@ button:active{transform:scale(0.97)}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
-<!-- Firebase -->
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-
+<!-- Firebase compat SDK — works as regular globals, no module scoping issues -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyDzBr_s1ukT4GUay4SIR6rVusgSLNHXHp0",
   authDomain: "calorie-tracker-67343.firebaseapp.com",
@@ -726,31 +723,48 @@ const firebaseConfig = {
   appId: "1:766686691267:web:4fac76a0f0c5d6336f0776",
   measurementId: "G-LXR0PFH95X"
 };
+firebase.initializeApp(firebaseConfig);
+const _fbAuth = firebase.auth();
+const _fbDb   = firebase.firestore();
+const _fbGoogleProvider = new firebase.auth.GoogleAuthProvider();
 
-const fbApp     = initializeApp(firebaseConfig);
-const auth      = getAuth(fbApp);
-const db        = getFirestore(fbApp);
-const gProvider = new GoogleAuthProvider();
+// ── Global helpers ────────────────────────────────────────────
+window._auth = _fbAuth;
+window._db   = _fbDb;
 
-// ── Expose Firestore helpers to global scope ──────────────────
-window._db      = db;
-window._auth    = auth;
-window._doc     = doc;
-window._getDoc  = getDoc;
-window._setDoc  = setDoc;
-window._collection = collection;
-window._getDocs = getDocs;
+// Firestore helpers matching the non-compat API shape used in app code
+window._doc = function(db, ...pathParts) {
+  // pathParts e.g. ['users', uid, 'days', date]
+  let ref = db;
+  for(let i=0; i<pathParts.length; i++){
+    ref = (i % 2 === 0) ? ref.collection(pathParts[i]) : ref.doc(pathParts[i]);
+  }
+  return ref;
+};
+window._getDoc = function(ref){ return ref.get(); };
+window._setDoc = function(ref, data, opts){
+  return opts && opts.merge ? ref.set(data, {merge:true}) : ref.set(data);
+};
+window._collection = function(db, ...pathParts){
+  let ref = db;
+  for(let i=0; i<pathParts.length; i++){
+    ref = (i % 2 === 0) ? ref.collection(pathParts[i]) : ref.doc(pathParts[i]);
+  }
+  return ref;
+};
+window._getDocs = function(ref){ return ref.get(); };
 
-// ── Auth functions defined HERE, inside module, using imports directly ──
+// ── Auth functions ────────────────────────────────────────────
 window.signInWithGoogle = async function(){
   const btn    = document.getElementById('google-signin-btn');
   const status = document.getElementById('login-status');
   btn.disabled = true;
   status.textContent = 'Opening Google sign-in…';
   try {
-    const result = await signInWithPopup(auth, gProvider);
+    const result = await _fbAuth.signInWithPopup(_fbGoogleProvider);
     status.textContent = 'Welcome, ' + result.user.displayName + '!';
   } catch(e) {
+    console.error('signIn error', e);
     status.textContent = 'Sign-in failed: ' + e.message;
     btn.disabled = false;
   }
@@ -758,34 +772,22 @@ window.signInWithGoogle = async function(){
 
 window.signOut = async function(){
   try {
-    await fbSignOut(auth);
-    window.allData        = {};
-    window.expendData     = {};
-    window.userFoods      = [];
-    window.userCats       = [];
-    window._uid           = null;
-    window._currentUser   = null;
-  } catch(e) { console.error('signOut error', e); }
+    await _fbAuth.signOut();
+    allData={}; expendData={}; userFoods=[]; userCats=[];
+    window._currentUser = null;
+    window._uid = null;
+  } catch(e){ console.error('signOut error', e); }
 };
 
-// ── Wire button listeners directly ───────────────────────────
-const _signinBtn = document.getElementById('google-signin-btn');
-const _signoutBtn = document.getElementById('signout-btn');
-if(_signinBtn) _signinBtn.addEventListener('click', function(){ window.signInWithGoogle(); });
-if(_signoutBtn) _signoutBtn.addEventListener('click', function(){ window.signOut(); });
-// Also set onclick as belt-and-suspenders fallback
-window._attachAuthButtons = function(){
-  const b = document.getElementById('google-signin-btn');
-  if(b) b.onclick = function(){ window.signInWithGoogle(); };
-  const s = document.getElementById('signout-btn');
-  if(s) s.onclick = function(){ window.signOut(); };
-};
-window._attachAuthButtons();
+// ── Wire buttons ──────────────────────────────────────────────
+document.getElementById('google-signin-btn').onclick = function(){ window.signInWithGoogle(); };
+document.getElementById('signout-btn').onclick       = function(){ window.signOut(); };
 
 // ── Auth state observer ───────────────────────────────────────
-onAuthStateChanged(auth, user => {
+_fbAuth.onAuthStateChanged(function(user){
   if(user){
     window._currentUser = user;
+    window._uid         = user.uid;
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display     = 'block';
     const avatar = document.getElementById('user-avatar');
@@ -794,6 +796,7 @@ onAuthStateChanged(auth, user => {
     if(typeof window.onUserReady === 'function') window.onUserReady(user);
   } else {
     window._currentUser = null;
+    window._uid         = null;
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('main-app').style.display     = 'none';
     document.getElementById('user-avatar').style.display  = 'none';
@@ -887,8 +890,8 @@ async function changeDay(d){
   curDate=dt.toISOString().slice(0,10);
   // Load this day from Firestore if not already cached
   if(_uid && !allData[curDate]){
-    const daySnap = await window._getDoc(window._doc(window._db,'users',_uid,'days',curDate));
-    if(daySnap.exists()){
+    const daySnap = await window._db.collection('users').doc(_uid).collection('days').doc(curDate).get();
+    if(daySnap.exists){
       const dd=daySnap.data();
       allData[curDate]={entries:dd.entries||[],water:dd.water||[]};
       if(dd.expend) expendData[curDate]=dd.expend;
@@ -1788,15 +1791,25 @@ async function onModalBarcodeDetected(result){
 
 // ── Firebase helpers ─────────────────────────────────────────
 let _uid = null;
-function userRef(path){ return window._doc(window._db, 'users', _uid, ...path.split('/')); }
+function userRef(path){
+  const parts = path.split('/');
+  let ref = window._db.collection('users').doc(_uid);
+  for(let i=0;i<parts.length;i++){
+    ref = (i%2===0) ? ref.collection(parts[i]) : ref.doc(parts[i]);
+  }
+  return ref;
+}
 
 async function fbSave(path, data){
   if(!_uid) return;
-  try{ await window._setDoc(userRef(path), data, {merge:true}); }catch(e){ console.warn('fbSave',e); }
+  try{ await userRef(path).set(data, {merge:true}); }catch(e){ console.warn('fbSave error',e); }
 }
 async function fbGet(path){
   if(!_uid) return null;
-  try{ const s=await window._getDoc(userRef(path)); return s.exists()?s.data():null; }catch(e){ return null; }
+  try{
+    const s=await userRef(path).get();
+    return s.exists?s.data():null;
+  }catch(e){ console.warn('fbGet error',e); return null; }
 }
 
 // ── Override save/load to use Firestore ──────────────────────
@@ -1884,8 +1897,8 @@ async function loadFromFirebase(uid){
   // Load last 30 days of data
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate()-30);
-  const col = window._collection(window._db,'users',uid,'days');
-  const snap = await window._getDocs(col);
+  const col = window._db.collection('users').doc(uid).collection('days');
+  const snap = await col.get();
   snap.forEach(doc => {
     const d = doc.data();
     allData[doc.id] = {
