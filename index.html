@@ -886,19 +886,34 @@ function applySettingsToUI(){
 
 // ── Date nav ──────────────────────────────────────────────────
 async function changeDay(d){
-  const dt=new Date(curDate+'T00:00:00');dt.setDate(dt.getDate()+d);
+  // Block going forward past today
+  if(d>0 && curDate>=todayStr()) return;
+  const dt=new Date(curDate+'T00:00:00');
+  dt.setDate(dt.getDate()+d);
   curDate=dt.toISOString().slice(0,10);
   // Load this day from Firestore if not already cached
-  if(_uid && !allData[curDate]){
-    const daySnap = await window._db.collection('users').doc(_uid).collection('days').doc(curDate).get();
-    if(daySnap.exists){
-      const dd=daySnap.data();
-      allData[curDate]={entries:dd.entries||[],water:dd.water||[]};
-      if(dd.expend) expendData[curDate]=dd.expend;
-    }
+  if(window._uid && !allData[curDate]){
+    try{
+      const daySnap=await window._db.collection('users').doc(window._uid).collection('days').doc(curDate).get();
+      if(daySnap.exists){
+        const dd=daySnap.data();
+        allData[curDate]={entries:dd.entries||[],water:dd.water||[]};
+        if(dd.expend) expendData[curDate]=dd.expend;
+      } else {
+        allData[curDate]={entries:[],water:[]};
+      }
+    }catch(e){ allData[curDate]={entries:[],water:[]}; }
   }
+  updateNextBtn();
   renderToday();
-  document.getElementById('next-btn').disabled=curDate>=todayStr();
+}
+function updateNextBtn(){
+  const btn=document.getElementById('next-btn');
+  if(!btn) return;
+  const isToday=curDate>=todayStr();
+  btn.disabled=isToday;
+  btn.style.opacity=isToday?'0.35':'1';
+  btn.style.cursor=isToday?'default':'pointer';
 }
 function fmtDate(s){
   const dt=new Date(s+'T00:00:00'),today=new Date(todayStr()+'T00:00:00');
@@ -910,7 +925,7 @@ function fmtDate(s){
 // ── Main render ───────────────────────────────────────────────
 function renderToday(){
   document.getElementById('date-label').textContent=fmtDate(curDate);
-  document.getElementById('next-btn').disabled=curDate>=todayStr();
+  updateNextBtn();
   const ex=dayExpend(curDate);
   document.getElementById('inp-bmr').value=ex.bmr||settings.bmr||'';
   document.getElementById('inp-office-hrs').value=ex.officeHrs||0;
