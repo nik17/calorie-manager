@@ -201,6 +201,8 @@ button:active{transform:scale(0.97)}
 
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
 .hidden{display:none!important}
+.nav-btn{padding:6px 16px;font-size:15px;border:0.5px solid var(--bd2);border-radius:var(--r);background:none;cursor:pointer;color:var(--tx)}
+.nav-btn.dimmed{opacity:0.3;cursor:default}
 .itab{padding:6px 14px;font-size:12px;font-weight:500;border:0.5px solid var(--bd2);border-radius:20px;cursor:pointer;background:none;color:var(--tx2);transition:all .12s;white-space:nowrap}
 .active-itab{background:var(--tx);color:var(--bg);border-color:var(--tx)}
 .empty-state{text-align:center;padding:28px 16px;color:var(--tx2);font-size:13px}
@@ -246,9 +248,9 @@ button:active{transform:scale(0.97)}
 
     <!-- Date nav -->
     <div class="date-nav">
-      <span id="prev-btn" style="padding:5px 14px;border:0.5px solid var(--bd2);border-radius:var(--r);cursor:pointer;font-size:16px;user-select:none">&#8592;</span>
+      <button class="nav-btn" id="prev-btn" onclick="navPrev()">&#8592;</button>
       <span class="date-label" id="date-label"></span>
-      <span id="next-btn" style="padding:5px 14px;border:0.5px solid var(--bd2);border-radius:var(--r);cursor:pointer;font-size:16px;user-select:none">&#8594;</span>
+      <button class="nav-btn" id="next-btn" onclick="navNext()">&#8594;</button>
     </div>
 
     <!-- Balance columns -->
@@ -810,7 +812,7 @@ _fbAuth.onAuthStateChanged(function(user){
 const SK='ft_data_v3',SETK='ft_settings_v2',FK='ft_foods_v4',CK='ft_cats_v4',EK='ft_expend_v2';
 
 // ── State ─────────────────────────────────────────────────────
-let curDate=todayStr(),allData={},expendData={};
+window.curDate=todayStr(); let allData={},expendData={};
 let settings={bmr:1700,officeRate:70,cal:2000,prot:120,carb:250,fat:65,fiber:30,sugar:30,cupMl:250,flaskMl:500};
 let userFoods=[],userCats=[];
 let editFoodIdx=-1,libCatFilter='All',addModalMeal='Breakfast';
@@ -854,7 +856,13 @@ const DEFAULT_FOODS=[
 const MEALS=['Breakfast','Lunch','Snacks','Dinner'];
 const MEAL_DRAWER={Breakfast:'d-breakfast',Lunch:'d-lunch',Snacks:'d-snacks',Dinner:'d-dinner'};
 
-function todayStr(){return new Date().toISOString().slice(0,10)}
+function todayStr(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+}
 function dayData(d){if(!allData[d])allData[d]={entries:[],water:[]};return allData[d]}
 function dayExpend(d){if(!expendData[d])expendData[d]={bmr:0,officeHrs:0,movement:0};return expendData[d]}
 function getCatColor(n){if(!n)return'#888780';const c=userCats.find(c=>c&&c.name===n);return c?c.color:'#888780'}
@@ -890,7 +898,10 @@ async function changeDay(d){
   if(d>0 && curDate>=todayStr()) return;
   const dt=new Date(curDate+'T00:00:00');
   dt.setDate(dt.getDate()+d);
-  curDate=dt.toISOString().slice(0,10);
+  const y=dt.getFullYear();
+  const m=String(dt.getMonth()+1).padStart(2,'0');
+  const day2=String(dt.getDate()).padStart(2,'0');
+  window.curDate=y+'-'+m+'-'+day2; curDate=window.curDate;
   // Load this day from Firestore if not already cached
   if(window._uid && !allData[curDate]){
     try{
@@ -910,23 +921,15 @@ async function changeDay(d){
 function updateNextBtn(){
   const btn=document.getElementById('next-btn');
   if(!btn) return;
-  const isToday=curDate>=todayStr();
-  btn.style.opacity=isToday?'0.3':'1';
-  btn.style.pointerEvents=isToday?'none':'auto';
+  const isToday=(curDate===todayStr());
+  if(isToday) btn.classList.add('dimmed');
+  else btn.classList.remove('dimmed');
 }
 function navPrev(){ changeDay(-1); }
-function navNext(){ if(curDate<todayStr()) changeDay(1); }
-// Wire nav buttons via JS event listeners after DOM ready
-(function wireNavButtons(){
-  function attach(){
-    const p=document.getElementById('prev-btn');
-    const n=document.getElementById('next-btn');
-    if(!p||!n){ setTimeout(attach,100); return; }
-    p.addEventListener('click', function(){ navPrev(); });
-    n.addEventListener('click', function(){ navNext(); });
-  }
-  attach();
-})();
+function navNext(){
+  if(curDate<todayStr()) changeDay(1);
+}
+// nav buttons wired in boot section
 function fmtDate(s){
   const dt=new Date(s+'T00:00:00'),today=new Date(todayStr()+'T00:00:00');
   const diff=Math.round((today-dt)/86400000);
@@ -1953,6 +1956,8 @@ window.onUserReady = async function(user){
 // ── Boot ──────────────────────────────────────────────────────
 // App renders after auth — onUserReady() triggers loadFromFirebase()
 // If not signed in, login screen shows (handled by onAuthStateChanged)
+
+// nav buttons use inline onclick
 </script>
 </body>
 </html>
