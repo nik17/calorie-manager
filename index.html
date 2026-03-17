@@ -734,6 +734,7 @@ const gProvider = new GoogleAuthProvider();
 
 // ── Expose Firestore helpers to global scope ──────────────────
 window._db      = db;
+window._auth    = auth;
 window._doc     = doc;
 window._getDoc  = getDoc;
 window._setDoc  = setDoc;
@@ -758,11 +759,12 @@ window.signInWithGoogle = async function(){
 window.signOut = async function(){
   try {
     await fbSignOut(auth);
-    window.allData     = {};
-    window.expendData  = {};
-    window.userFoods   = [];
-    window.userCats    = [];
-    window._uid        = null;
+    window.allData        = {};
+    window.expendData     = {};
+    window.userFoods      = [];
+    window.userCats       = [];
+    window._uid           = null;
+    window._currentUser   = null;
   } catch(e) { console.error('signOut error', e); }
 };
 
@@ -783,6 +785,7 @@ window._attachAuthButtons();
 // ── Auth state observer ───────────────────────────────────────
 onAuthStateChanged(auth, user => {
   if(user){
+    window._currentUser = user;
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display     = 'block';
     const avatar = document.getElementById('user-avatar');
@@ -790,6 +793,7 @@ onAuthStateChanged(auth, user => {
     document.getElementById('signout-btn').style.display = 'block';
     if(typeof window.onUserReady === 'function') window.onUserReady(user);
   } else {
+    window._currentUser = null;
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('main-app').style.display     = 'none';
     document.getElementById('user-avatar').style.display  = 'none';
@@ -1899,6 +1903,8 @@ async function loadFromFirebase(uid){
 
 // Called by Firebase module when auth state is confirmed
 window.onUserReady = async function(user){
+  window._currentUser = user;
+  window._uid = user.uid;
   await loadFromFirebase(user.uid);
 };
 
