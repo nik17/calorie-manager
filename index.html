@@ -246,9 +246,9 @@ button:active{transform:scale(0.97)}
 
     <!-- Date nav -->
     <div class="date-nav">
-      <button onclick="changeDay(-1)">&#8592;</button>
+      <button onclick="navPrev()">&#8592;</button>
       <span class="date-label" id="date-label"></span>
-      <button onclick="changeDay(1)" id="next-btn">&#8594;</button>
+      <button onclick="navNext()" id="next-btn">&#8594;</button>
     </div>
 
     <!-- Balance columns -->
@@ -911,10 +911,13 @@ function updateNextBtn(){
   const btn=document.getElementById('next-btn');
   if(!btn) return;
   const isToday=curDate>=todayStr();
-  btn.disabled=isToday;
-  btn.style.opacity=isToday?'0.35':'1';
+  btn.disabled=false; // never use disabled — it sticks
+  btn.style.opacity=isToday?'0.3':'1';
+  btn.style.pointerEvents=isToday?'none':'auto';
   btn.style.cursor=isToday?'default':'pointer';
 }
+function navPrev(){ changeDay(-1); }
+function navNext(){ if(curDate<todayStr()) changeDay(1); }
 function fmtDate(s){
   const dt=new Date(s+'T00:00:00'),today=new Date(todayStr()+'T00:00:00');
   const diff=Math.round((today-dt)/86400000);
