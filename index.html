@@ -768,28 +768,43 @@ window.signInWithGoogle = async function(){
   const status = document.getElementById('login-status');
   if(!_fbAuth){ status.textContent='Firebase not loaded. Check connection.'; return; }
   btn.disabled = true;
-  status.textContent = 'Redirecting to Google…';
+  status.textContent = 'Signing in…';
   try {
-    await _fbAuth.signInWithRedirect(_fbGoogleProvider);
+    // Try popup first — works on desktop and most mobile browsers
+    await _fbAuth.signInWithPopup(_fbGoogleProvider);
   } catch(e) {
-    console.error('signIn error', e);
-    status.textContent = 'Sign-in failed: ' + e.message;
-    btn.disabled = false;
+    if(e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+      // Popup blocked — fall back to redirect
+      status.textContent = 'Popup blocked, redirecting…';
+      try {
+        await _fbAuth.signInWithRedirect(_fbGoogleProvider);
+      } catch(e2) {
+        status.textContent = 'Sign-in failed: ' + e2.message;
+        btn.disabled = false;
+      }
+    } else {
+      console.error('signIn error', e);
+      status.textContent = 'Sign-in failed: ' + e.message;
+      btn.disabled = false;
+    }
   }
 };
 
-// Handle redirect result when page loads back after Google auth
+// Handle redirect result on page load (for fallback redirect flow)
 async function handleRedirectResult(){
   if(!_fbAuth) return;
   try {
     const result = await _fbAuth.getRedirectResult();
     if(result && result.user){
       console.log('Redirect sign-in success:', result.user.displayName);
+      // onAuthStateChanged will fire and handle the rest
     }
   } catch(e) {
-    console.error('Redirect result error:', e);
-    const status = document.getElementById('login-status');
-    if(status) status.textContent = 'Sign-in failed: ' + e.message;
+    if(e.code !== 'auth/no-auth-event') {
+      console.error('Redirect result error:', e);
+      const status = document.getElementById('login-status');
+      if(status) status.textContent = 'Sign-in failed: ' + e.message;
+    }
   }
 }
 
@@ -1142,7 +1157,7 @@ async function addModalAiLookup(){
   btn.disabled=true; btn.textContent='Fetching…';
   status.textContent='Asking AI for macros…';
   try{
-    const PROXY='https://macro-proxy.YOUR-SUBDOMAIN.workers.dev';
+    const PROXY='https://macro-proxy.nikashpandey.workers.dev';
     const response=await fetch(PROXY,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -1614,7 +1629,7 @@ async function aiLookup() {
   aiCurrentResult = null;
 
   try {
-    const PROXY='https://macro-proxy.YOUR-SUBDOMAIN.workers.dev';
+    const PROXY='https://macro-proxy.nikashpandey.workers.dev';
     const response = await fetch(PROXY, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -1742,7 +1757,7 @@ async function analysePhoto(){
   btn.disabled=true;btn.textContent='Analysing…';
   status.textContent='Asking AI to identify food and estimate macros…';
   try{
-    const PROXY='https://macro-proxy.YOUR-SUBDOMAIN.workers.dev';
+    const PROXY='https://macro-proxy.nikashpandey.workers.dev';
     const response=await fetch(PROXY,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
